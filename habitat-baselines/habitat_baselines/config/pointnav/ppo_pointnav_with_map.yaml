@@ -1,0 +1,65 @@
+# @package _global_
+
+defaults:
+  - /benchmark/nav/pointnav: pointnav_mp3d
+  - /habitat_baselines: habitat_baselines_rl_config_base
+  - _self_
+
+habitat:
+  task:
+    type: "Nav-v0"
+    measurements:
+      - type: "map_exploration_reward"
+    map_reward:
+      maps_dir: "data/scene_maps/${habitat.dataset.split}"
+      exploration_reward_scale: 0.1
+      wall_distance_reward_scale: 0.1
+      map_resolution: 0.1
+
+habitat_baselines:
+  verbose: True
+  trainer_name: "ppo"
+  torch_gpu_id: 0
+  tensorboard_dir: "tb"
+  video_dir: "video_dir"
+  test_episode_count: -1
+  eval_ckpt_path_dir: "data/new_checkpoints"
+  num_environments: 4
+  checkpoint_folder: "data/new_checkpoints"
+  
+  # 继承原有的PPO配置
+  rl:
+    policy:
+      main_agent:
+        name: "PointNavResNetPolicy"
+    ppo:
+      clip_param: 0.2
+      ppo_epoch: 2
+      num_mini_batch: 2
+      value_loss_coef: 0.5
+      entropy_coef: 0.01
+      lr: 2.5e-4
+      eps: 1e-5
+      max_grad_norm: 0.5
+      num_steps: 128
+      hidden_size: 512
+      use_gae: True
+      gamma: 0.99
+      tau: 0.95
+      use_linear_clip_decay: True
+      use_linear_lr_decay: True
+      reward_window_size: 50
+      use_double_buffered_sampler: False
+  
+  eval:
+    # 保持原有的评估配置
+    video_option: []
+    
+    # 添加地图奖励相关的评估配置
+    measurements:
+      - type: "map_exploration_reward"
+    map_reward:
+      maps_dir: "data/scene_maps/${habitat.dataset.split}" # 动态加载对应split的地图
+      exploration_reward_scale: 0.1
+      wall_distance_reward_scale: 0.1
+      map_resolution: 0.1

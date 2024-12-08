@@ -325,11 +325,22 @@ class PPOTrainer(BaseRLTrainer):
         self.running_episode_stats = dict(
             count=torch.zeros(self.envs.num_envs, 1),
             reward=torch.zeros(self.envs.num_envs, 1),
+            map_reward=torch.zeros(self.envs.num_envs, 1),  # 添加地图奖励统计
+            map_exploration=torch.zeros(self.envs.num_envs, 1),  # 添加探索区域统计
+            wall_distance=torch.zeros(self.envs.num_envs, 1),  # 添加墙壁距离统计
         )
         self.window_episode_stats = defaultdict(
             lambda: deque(maxlen=self._ppo_cfg.reward_window_size)
         )
 
+        # 检查是否启用了地图奖励
+        self._use_map_reward = (
+            "map_exploration_reward" in self.config.habitat.task.measurements
+        )
+        
+        if self._use_map_reward and self.config.habitat_baselines.verbose:
+            logger.info("Map exploration reward enabled")
+        
         self.t_start = time.time()
 
     @rank0_only
@@ -482,13 +493,21 @@ class PPOTrainer(BaseRLTrainer):
             batch = batch_obs(observations, device=self.device)
             batch = apply_obs_transforms_batch(batch, self.obs_transforms)  # type: ignore
 
-            # 处理奖励
-            rewards = torch.tensor(
+            # 获取基础奖励
+            base_rewards = torch.tensor(
                 rewards_l,
                 dtype=torch.float,
                 device=self.current_episode_reward.device,
-            )
-            rewards = rewards.unsqueeze(1)
+            ).unsqueeze(1)
+
+            # 获取地图探索奖励
+            map_rewards = torch.zeros_like(base_rewards)
+            for i, info in enumerate(infos):
+                if "map_exploration_reward" in info:
+                    map_rewards[i] = info["map_exploration_reward"]
+
+            # 合并所有奖励
+            rewards = base_rewards + map_rewards
 
             # 处理完成标志
             not_done_masks = torch.tensor(
@@ -502,7 +521,13 @@ class PPOTrainer(BaseRLTrainer):
             self.current_episode_reward[env_slice] += rewards
             current_ep_reward = self.current_episode_reward[env_slice]
             self.running_episode_stats["reward"][env_slice] += current_ep_reward.where(done_masks, current_ep_reward.new_zeros(()))  # type: ignore
-            self.running_episode_stats["count"][env_slice] += done_masks.float()  # type: ignore
+            
+            # 单独记录地图奖励统计
+            if "map_reward" not in self.running_episode_stats:
+                self.running_episode_stats["map_reward"] = torch.zeros_like(
+                    self.running_episode_stats["count"]
+                )
+            self.running_episode_stats["map_reward"][env_slice] += map_rewards.where(done_masks, map_rewards.new_zeros(()))  # type: ignore
 
             # 提取标量信息
             self._single_proc_infos = extract_scalars_from_infos(
