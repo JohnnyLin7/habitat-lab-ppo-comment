@@ -14,15 +14,12 @@ def _try_register_nav_task():
         from habitat.tasks.nav.nav import NavigationTask
         
         # 注册导航任务
-        if not registry.contains_task(name="Nav-v0"):
-            registry.register_task(name="Nav-v0", task_type=NavigationTask)
+        if registry.get_task(name="Nav-v0") is None:
+            registry.register_task(name="Nav-v0")(NavigationTask)
             
         # 注册地图奖励度量
-        if not registry.contains_measure("map_exploration_reward"):
-            registry.register_measure(
-                "map_exploration_reward",
-                measure_type=MapExplorationReward
-            )
+        if registry.get_measure("map_exploration_reward") is None:
+            registry.register_measure(name="map_exploration_reward")(MapExplorationReward)
             
     except ImportError as e:
         navtask_import_error = e

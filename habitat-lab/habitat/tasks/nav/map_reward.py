@@ -7,20 +7,28 @@ import os
 import torch
 from habitat.core.registry import registry
 from habitat.core.simulator import Simulator
-from habitat.tasks.nav.nav import NavigationTask, NavigationReward
+from habitat.core.embodied_task import Measure
+from habitat.tasks.nav.nav import NavigationTask
 from habitat.core.spaces import ActionSpace
 from habitat.tasks.utils import cartesian_to_polar
 from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.utils.visualizations import maps
+import logging
+from omegaconf import DictConfig
+
+logger = logging.getLogger(__name__)
+
 class MapManager:
-    def __init__(self, maps_dir: str):
+    def __init__(self, maps_dir: str, sim: Simulator):
         """初始化地图管理器
         
         Args:
             maps_dir: 地图文件目录路径
+            sim: Habitat simulator实例
         """
         self.maps: Dict[str, np.ndarray] = {}
         self.maps_dir = maps_dir
+        self._sim = sim
         self._load_all_maps()
         
     def _load_all_maps(self):
@@ -78,13 +86,22 @@ class MapManager:
         Returns:
             地图坐标 [x, y]
         """
-        map_size = scene_map.shape[0]
-        # 假设地图中心对应世界坐标原点
-        map_pos = (world_pos[:2] / self.map_resolution + map_size/2).astype(np.int32)
-        return np.clip(map_pos, 0, map_size-1)
+        # 使用habitat的to_grid函数进行坐标转换
+        map_x, map_y = maps.to_grid(
+            world_pos[2],  # z坐标
+            world_pos[0],  # x坐标
+            scene_map.shape[0:2],
+            sim=self._sim
+        )
+        
+        # 边界检查
+        map_x = np.clip(map_x, 0, scene_map.shape[0]-1)
+        map_y = np.clip(map_y, 0, scene_map.shape[1]-1)
+        
+        return np.array([map_x, map_y])
 
 @registry.register_measure
-class MapExplorationReward(NavigationReward):
+class MapExplorationReward(Measure):
     """基于地图的探索奖励度量"""
 
     cls_uuid: str = "map_exploration_reward"
@@ -92,17 +109,30 @@ class MapExplorationReward(NavigationReward):
     def __init__(
         self, 
         sim: Simulator, 
-        config, 
+        config: DictConfig, 
         *args, 
         task: NavigationTask,
         **kwargs
     ):
         self._sim = sim
         self._config = config
-        self._map_manager = MapManager(config.MAPS_DIR)
+        
+        # 从配置中获取地图奖励参数
+        map_reward_config = task.config.map_reward
+        self._map_manager = MapManager(
+            map_reward_config.maps_dir,
+            self._sim
+        )
+        
+        # 保存配置参数
+        self.exploration_reward_scale = map_reward_config.exploration_reward_scale
+        self.wall_distance_reward_scale = map_reward_config.wall_distance_reward_scale
+        self.map_resolution = map_reward_config.map_resolution
+        
         self._previous_position = None
         self._previous_rotation = None
-        super().__init__(*args, sim=sim, config=config, task=task, **kwargs)
+        
+        super().__init__()
 
     def _get_agent_state(self):
         """获取智能体状态"""
@@ -215,6 +245,7 @@ class MapExplorationReward(NavigationReward):
         
         scene_map = self._map_manager.get_map(scene_id)
         if scene_map is None:
+            logger.warning(f"No map found for scene {scene_id}")
             self._metric = 0.0
             return
             
@@ -227,8 +258,8 @@ class MapExplorationReward(NavigationReward):
             scene_map
         )
         
-        # 合并奖励
+        # 使用从配置中获取的系数
         self._metric = (
-            self._config.exploration_reward_scale * exploration_reward +
-            self._config.wall_distance_reward_scale * wall_reward
+            self.exploration_reward_scale * exploration_reward +
+            self.wall_distance_reward_scale * wall_reward
         )
