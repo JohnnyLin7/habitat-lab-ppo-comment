@@ -46,20 +46,21 @@ def execute_exp(config: "DictConfig", run_type: str) -> None:
         config: Habitat的配置对象,包含了所有实验参数
         run_type: 运行类型,可以是'train'(训练)或'eval'(评估)
     """
+    # 添加计时
+    import time
+    start_time = time.time()
+    
     # 设置随机种子以确保实验可重现
     random.seed(config.habitat.seed)
     np.random.seed(config.habitat.seed)
     torch.manual_seed(config.habitat.seed)
     
-    # 如果配置要求且CUDA可用,则限制PyTorch只使用单线程
-    # 这在某些情况下可以提高性能
     if (
         config.habitat_baselines.force_torch_single_threaded
         and torch.cuda.is_available()
     ):
         torch.set_num_threads(1)
 
-    # 从注册表中获取指定的训练器
     from habitat_baselines.common.baseline_registry import baseline_registry
 
     trainer_init = baseline_registry.get_trainer(
@@ -69,14 +70,20 @@ def execute_exp(config: "DictConfig", run_type: str) -> None:
         trainer_init is not None
     ), f"{config.habitat_baselines.trainer_name} is not supported"
     
-    # 初始化训练器
     trainer = trainer_init(config)
 
-    # 根据运行类型执行相应的操作
     if run_type == "train":
         trainer.train()
     elif run_type == "eval":
         trainer.eval()
+
+    # 计算并打印总训练时间
+    total_time = time.time() - start_time
+    hours = int(total_time // 3600)
+    minutes = int((total_time % 3600) // 60)
+    seconds = int(total_time % 60)
+    
+    print(f"\n训练总用时: {hours}小时 {minutes}分钟 {seconds}秒")
 
 
 if __name__ == "__main__":

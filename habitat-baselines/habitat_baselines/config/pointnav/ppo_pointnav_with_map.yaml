@@ -9,12 +9,12 @@ habitat:
   task:
     type: "Nav-v0"
     measurements:
-      - type: "map_exploration_reward"
-    map_reward:
-      maps_dir: "data/scene_maps/${habitat.dataset.split}"
-      exploration_reward_scale: 0.1
-      wall_distance_reward_scale: 0.1
-      map_resolution: 0.1
+      map_exploration_reward:
+        type: map_exploration_reward
+        maps_dir: "data/scene_maps/${habitat.dataset.split}"
+        exploration_reward_scale: 0.1
+        wall_distance_reward_scale: 0.1
+        map_resolution: 0.1
 
 habitat_baselines:
   verbose: True
@@ -27,7 +27,6 @@ habitat_baselines:
   num_environments: 4
   checkpoint_folder: "data/new_checkpoints"
   
-  # 继承原有的PPO配置
   rl:
     policy:
       main_agent:
@@ -52,14 +51,11 @@ habitat_baselines:
       use_double_buffered_sampler: False
   
   eval:
-    # 保持原有的评估配置
     video_option: []
-    
-    # 添加地图奖励相关的评估配置
     measurements:
-      - type: "map_exploration_reward"
-    map_reward:
-      maps_dir: "data/scene_maps/${habitat.dataset.split}" # 动态加载对应split的地图
-      exploration_reward_scale: 0.1
-      wall_distance_reward_scale: 0.1
-      map_resolution: 0.1
+      map_exploration_reward:
+        type: "map_exploration_reward"
+        maps_dir: "data/scene_maps/${habitat.dataset.split}"
+        exploration_reward_scale: 0.1
+        wall_distance_reward_scale: 0.1
+        map_resolution: 0.1

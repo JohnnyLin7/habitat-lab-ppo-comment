@@ -98,6 +98,13 @@ __all__ = [
 class HabitatBaseConfig:
     pass
 
+@dataclass
+class MeasurementConfig:
+    type: str = MISSING
+    maps_dir: Optional[str] = None
+    exploration_reward_scale: Optional[float] = None
+    wall_distance_reward_scale: Optional[float] = None
+    map_resolution: Optional[float] = None
 
 @dataclass
 class IteratorOptionsConfig(HabitatBaseConfig):
@@ -1368,6 +1375,13 @@ class DistanceToGoalRewardMeasurementConfig(MeasurementConfig):
 class AnswerAccuracyMeasurementConfig(MeasurementConfig):
     type: str = "AnswerAccuracy"
 
+@dataclass
+class MapExplorationRewardMeasurementConfig(MeasurementConfig):
+    type: str = "map_exploration_reward"
+    maps_dir: str = "data/scene_maps"
+    exploration_reward_scale: float = 0.1
+    wall_distance_reward_scale: float = 0.1
+    map_resolution: float = 0.1
 
 @dataclass
 class TaskConfig(HabitatBaseConfig):
@@ -2704,6 +2718,14 @@ cs.store(
     name="habitat_perf",
     node=RuntimePerfStatsMeasurementConfig,
 )
+
+cs.store(
+    package="habitat.task.measurements.map_exploration_reward",
+    group="habitat/task/measurements",
+    name="map_exploration_reward",
+    node=MapExplorationRewardMeasurementConfig,
+)
+
 
 
 from hydra.core.config_search_path import ConfigSearchPath

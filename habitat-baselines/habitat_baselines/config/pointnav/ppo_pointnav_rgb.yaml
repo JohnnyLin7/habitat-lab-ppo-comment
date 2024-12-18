@@ -1,0 +1,57 @@
+# @package _global_
+
+# Hyperparameters and ResNet18 from on https://arxiv.org/abs/2012.0611
+
+defaults:
+  - /benchmark/nav/pointnav: pointnav_rgb_mp3d    # 使用MP3D数据集的PointNav任务配置
+  - /habitat_baselines: habitat_baselines_rl_config_base  # 基础RL配置
+  - _self_
+
+habitat_baselines:
+  verbose: True                               # 是否输出详细日志
+  trainer_name: "ppo"                         # 使用PPO算法训练
+  torch_gpu_id: 0                             # 使用的GPU ID
+  tensorboard_dir: "tb_5e6"                       # Tensorboard日志目录
+  video_dir: "video_dir"                      # 视频保存目录
+  # Evaluate on all episodes
+  test_episode_count: -1                      # -1表示评估所有episodes
+  eval_ckpt_path_dir: "data/new_checkpoints_rgb_5e6"  # 评估时加载的checkpoint路径
+  num_environments: 4                         # 并行环境数量
+  checkpoint_folder: "data/new_checkpoints_rgb_5e6"   # checkpoint保存路径
+  num_updates: -1
+  total_num_steps: 5e6                      # 总训练步数
+  log_interval: 10000                           # 每隔多少步记录一次日志
+  num_checkpoints: 100                       # 保存的checkpoint数量
+  # Force PyTorch to be single threaded as
+  # this improves performance considerab
+  force_torch_single_threaded: True          # 强制PyTorch使用单线程以提高性能
+
+  eval:
+    video_option: [ ]                        # 评估时的视频录制选项
+    # Can be uncommented to generate videos.
+    # video_option: ["disk", "tensorboard"]  # 可以取消注释来生成视频
+
+  rl:
+    ppo:
+      # ppo params
+      clip_param: 0.2             # PPO裁剪参数，控制策略更新的程度
+      ppo_epoch: 2                # 每批数据重复训练的次数
+      num_mini_batch: 2           # 将数据分成多少小批次
+      value_loss_coef: 0.5        # 价值函数损失的权重
+      entropy_coef: 0.01          # 熵正则化系数，控制探索程度
+      lr: 2.5e-4                  # 学习率
+      eps: 1e-5                   # 优化器epsilon参数，防止除零
+      max_grad_norm: 0.5          # 梯度裁剪阈值，防止梯度爆炸
+      num_steps: 128              # 每次更新收集的环境步数
+      hidden_size: 512            # 神经网络隐藏层大小
+      use_gae: True               # 是否使用广义优势估计(GAE)
+      gamma: 0.99                 # 折扣因子，决定未来奖励的重要性
+      tau: 0.95                   # GAE-Lambda参数，用于优势估计
+      use_linear_clip_decay: True # 是否使用线性衰减的PPO裁剪
+      use_linear_lr_decay: True   # 是否使用线性学习率衰减
+      reward_window_size: 50      # 计算平均奖励的窗口大小
+
+      # Use double buffered sampling, typically helps
+      # when environment time is similar or larger than
+      # policy inference time during rollout generation
+      use_double_buffered_sampler: False     # 是否使用双缓冲采样器，当环境模拟时间接近或大于策略推理时间时有帮助

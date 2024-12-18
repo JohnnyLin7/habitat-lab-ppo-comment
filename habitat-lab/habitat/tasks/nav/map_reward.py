@@ -15,6 +15,14 @@ from habitat.utils.geometry_utils import quaternion_rotate_vector
 from habitat.utils.visualizations import maps
 import logging
 from omegaconf import DictConfig
+from dataclasses import dataclass
+from habitat.utils.visualizations import maps
+import numpy as np
+import cv2
+import os
+import logging
+from habitat.config.default_structured_configs import MeasurementConfig
+from hydra.core.config_store import ConfigStore
 
 logger = logging.getLogger(__name__)
 
@@ -100,39 +108,53 @@ class MapManager:
         
         return np.array([map_x, map_y])
 
+@dataclass
+class MapExplorationRewardMeasurementConfig(MeasurementConfig):
+    type: str = "map_exploration_reward"
+    maps_dir: str = "data/scene_maps"
+    exploration_reward_scale: float = 0.1
+    wall_distance_reward_scale: float = 0.1
+    map_resolution: float = 0.1
+
+# 注册配置
+cs = ConfigStore.instance()
+cs.store(
+    package="habitat.task.measurements.map_exploration_reward",
+    group="habitat/task/measurements",
+    name="map_exploration_reward",
+    node=MapExplorationRewardMeasurementConfig,
+)
+
 @registry.register_measure
 class MapExplorationReward(Measure):
-    """基于地图的探索奖励度量"""
-
     cls_uuid: str = "map_exploration_reward"
 
     def __init__(
         self, 
         sim: Simulator, 
-        config: DictConfig, 
-        *args, 
-        task: NavigationTask,
+        config: MapExplorationRewardMeasurementConfig, 
         **kwargs
     ):
         self._sim = sim
         self._config = config
         
-        # 从配置中获取地图奖励参数
-        map_reward_config = task.config.map_reward
         self._map_manager = MapManager(
-            map_reward_config.maps_dir,
+            config.maps_dir,
             self._sim
         )
         
-        # 保存配置参数
-        self.exploration_reward_scale = map_reward_config.exploration_reward_scale
-        self.wall_distance_reward_scale = map_reward_config.wall_distance_reward_scale
-        self.map_resolution = map_reward_config.map_resolution
+        self.exploration_reward_scale = config.exploration_reward_scale
+        self.wall_distance_reward_scale = config.wall_distance_reward_scale
+        self.map_resolution = config.map_resolution
         
         self._previous_position = None
         self._previous_rotation = None
         
         super().__init__()
+
+    @staticmethod
+    def _get_uuid(*args, **kwargs):
+        return MapExplorationReward.cls_uuid
 
     def _get_agent_state(self):
         """获取智能体状态"""
